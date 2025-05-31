@@ -11,6 +11,7 @@ import { Server } from 'socket.io';
 import authRoutes from './routes/auth.js';
 import messageRoutes from './routes/messages.js';
 import userRoutes from './routes/users.js';
+import pingRoutes from './routes/ping.js';
 
 // Import socket handlers
 import { handleSocketConnection, socketAuthMiddleware } from './socket/socketHandlers.js';
@@ -102,6 +103,7 @@ mongoose.connect(process.env.MONGODB_URI)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api', pingRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -147,6 +149,9 @@ app.post('/api/admin/reset-limits', (req, res) => {
 
 // Socket.IO authentication middleware
 io.use(socketAuthMiddleware);
+
+// 🌐 Make io globally available for heartbeat monitoring
+global.io = io;
 
 // Socket.IO connection handling
 io.on('connection', async (socket) => {

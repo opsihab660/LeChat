@@ -8,7 +8,7 @@ const HeaderTypingIndicator = ({ typingUsers, currentUser, className = '' }) => 
   // Memoize typing status to prevent unnecessary re-renders
   const hasTypingUsers = useMemo(() => typingUsers.length > 0, [typingUsers.length]);
 
-  // Handle visibility with smooth transitions and enhanced stability
+  // Enhanced visibility handling with improved consistency
   useEffect(() => {
     // Clear any existing hide timeout
     if (hideTimeoutRef.current) {
@@ -20,10 +20,10 @@ const HeaderTypingIndicator = ({ typingUsers, currentUser, className = '' }) => 
       setIsVisible(true);
       setAnimationKey(prev => prev + 1);
     } else {
-      // Delay hiding for better UX and consistency - much longer for better visibility
+      // Enhanced delay for better consistency - prevents flickering during pause/resume
       hideTimeoutRef.current = setTimeout(() => {
         setIsVisible(false);
-      }, 1500); // Much longer delay for better consistency and visibility
+      }, 1000); // Optimized delay for better consistency
     }
 
     return () => {

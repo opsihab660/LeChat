@@ -11,7 +11,7 @@ const TypingIndicator = memo(({ typingUsers, timestamp, className = '', onVisibi
   // Memoize typing users to prevent unnecessary re-renders
   const hasTypingUsers = useMemo(() => typingUsers.length > 0, [typingUsers.length]);
 
-  // Ultra-fast visibility handling - reduced delays for instant response
+  // Enhanced visibility handling with better consistency
   useEffect(() => {
     // Clear any existing visibility timeout
     if (visibilityTimeoutRef.current) {
@@ -31,17 +31,17 @@ const TypingIndicator = memo(({ typingUsers, timestamp, className = '', onVisibi
     } else {
       setAnimationClass('ultra-fast-typing-exit');
 
-      // Reduced hide delay from 1200ms to 300ms for faster cleanup
+      // Enhanced hide delay for better consistency - prevents flickering
       visibilityTimeoutRef.current = setTimeout(() => {
         setIsVisible(false);
         if (onVisibilityChange) {
           onVisibilityChange(false);
         }
-      }, 300);
+      }, 500); // Increased to 500ms for better consistency
     }
   }, [hasTypingUsers, onVisibilityChange]);
 
-  // Ultra-fast animation restart - reduced throttle for instant response
+  // Enhanced animation handling with better consistency
   useEffect(() => {
     if (timestamp && hasTypingUsers && timestamp !== lastTimestampRef.current) {
       lastTimestampRef.current = timestamp;
@@ -51,10 +51,10 @@ const TypingIndicator = memo(({ typingUsers, timestamp, className = '', onVisibi
         clearTimeout(animationTimeoutRef.current);
       }
 
-      // Reduced throttle from 50ms to 16ms (60fps) for ultra-smooth tracking
+      // Optimized throttle for smooth animation without excessive updates
       animationTimeoutRef.current = setTimeout(() => {
         setAnimationKey(prev => prev + 1);
-      }, 16);
+      }, 20); // Balanced at 20ms for smooth animation
     }
 
     return () => {
@@ -80,20 +80,12 @@ const TypingIndicator = memo(({ typingUsers, timestamp, className = '', onVisibi
 
   return (
     <div className={`flex justify-start ${className}`}>
-      <div className={`
-        bg-white dark:bg-gray-700
-        border border-gray-200 dark:border-gray-600
-        rounded-2xl px-3 py-2.5
-        shadow-sm
-        ${animationClass}
-        ultra-fast-typing-container
-        transform-gpu
-      `}>
-        {/* Ultra-fast typing dots with hardware acceleration */}
-        <div className="flex items-center justify-center space-x-1.5" key={animationKey}>
-          <div className="ultra-fast-typing-dot ultra-fast-typing-dot-1"></div>
-          <div className="ultra-fast-typing-dot ultra-fast-typing-dot-2"></div>
-          <div className="ultra-fast-typing-dot ultra-fast-typing-dot-3"></div>
+      <div className={`typing-bubble ${animationClass} ultra-fast-typing-container transform-gpu`}>
+        {/* WhatsApp-style typing dots */}
+        <div className="typing-dots" key={animationKey}>
+          <div className="typing-dot"></div>
+          <div className="typing-dot"></div>
+          <div className="typing-dot"></div>
         </div>
       </div>
     </div>

@@ -257,11 +257,28 @@ export const useChat = () => {
         // Set initial messages - only if we're still on the same conversation
         if (currentConversationIdRef.current === conversationId) {
           console.log(`✅ Setting ${newMessages.length} messages for conversation:`, conversationId);
-          setMessages(newMessages);
+
+          // Get existing cached messages to merge with API messages
+          const existingCachedMessages = getCachedMessages(conversationId) || [];
+
+          // Create a map of existing messages by ID for efficient lookup
+          const existingMessageIds = new Set(newMessages.map(msg => msg._id));
+
+          // Find cached messages that are not in the API response (newer messages received via socket)
+          const newerCachedMessages = existingCachedMessages.filter(msg => !existingMessageIds.has(msg._id));
+
+          // Merge API messages with newer cached messages, sorted by creation time
+          const allMessages = [...newMessages, ...newerCachedMessages].sort((a, b) =>
+            new Date(a.createdAt) - new Date(b.createdAt)
+          );
+
+          console.log(`🔄 Merged ${newMessages.length} API messages with ${newerCachedMessages.length} cached messages`);
+
+          setMessages(allMessages);
           setPage(1);
 
-          // Cache the messages for future use
-          setCachedMessages(conversationId, newMessages, {
+          // Cache the merged messages for future use
+          setCachedMessages(conversationId, allMessages, {
             hasMoreMessages: response.data.pagination.hasNext,
             currentPage: 1
           });
@@ -332,12 +349,36 @@ export const useChat = () => {
 
       setCurrentConversation(conversation);
       currentConversationIdRef.current = conversation._id; // Track the current conversation ID
-      await loadMessages(conversation._id);
 
-      // Auto-scroll to bottom after starting new conversation - immediate
-      setTimeout(() => {
-        scrollToBottom(); // Immediate scroll to bottom
-      }, 50); // Minimal delay for DOM update
+      // Check if we have cached messages for this conversation first
+      const cachedMessages = getCachedMessages(conversation._id);
+
+      if (cachedMessages && cachedMessages.length > 0) {
+        console.log(`📋 Found ${cachedMessages.length} cached messages for new conversation:`, conversation._id);
+
+        // Use cached messages immediately
+        setMessages(cachedMessages);
+
+        // Auto-scroll to bottom
+        setTimeout(() => {
+          scrollToBottom(true);
+        }, 50);
+
+        // Also load from API to ensure we have the latest messages
+        try {
+          await loadMessages(conversation._id);
+        } catch (error) {
+          console.log('⚠️ Failed to refresh messages from API for new conversation, using cached messages only');
+        }
+      } else {
+        // No cached messages, load from API
+        await loadMessages(conversation._id);
+
+        // Auto-scroll to bottom after loading
+        setTimeout(() => {
+          scrollToBottom();
+        }, 50);
+      }
 
       return conversation;
     } catch (error) {
@@ -345,7 +386,7 @@ export const useChat = () => {
       toast.error(error.response?.data?.message || 'Failed to start conversation');
       return null;
     }
-  }, [loadMessages, scrollToBottom]);
+  }, [loadMessages, scrollToBottom, getCachedMessages]);
 
   // Send a message with optimistic updates
   const handleSendMessage = useCallback((content, type = 'text', replyTo = null, file = null) => {
@@ -379,7 +420,8 @@ export const useChat = () => {
       replyTo: replyTo ? { _id: replyTo, content: 'Reply content...' } : null,
       isOptimistic: true, // Flag to identify optimistic messages
       status: 'sending',
-      reactions: []
+      reactions: [],
+      animationClass: 'sending' // Add animation class
     };
 
     // Add optimistic message to UI immediately and update cache
@@ -524,7 +566,7 @@ export const useChat = () => {
       const cachedMetadata = getCachedMetadata(conversation._id);
 
       if (cachedMessages && cachedMessages.length > 0) {
-        console.log(`📋 Using cached messages for conversation:`, conversation._id, `(${cachedMessages.length} messages)`);
+        console.log(`📋 Found cached messages for conversation:`, conversation._id, `(${cachedMessages.length} messages)`);
 
         // Use cached messages immediately - no loading state
         setMessages(cachedMessages);
@@ -535,6 +577,14 @@ export const useChat = () => {
         setTimeout(() => {
           scrollToBottom(true);
         }, 50);
+
+        // Also load fresh messages from API to ensure we have the latest
+        // This will merge with cached messages and update the cache
+        try {
+          await loadMessages(conversation._id, 1, false, false);
+        } catch (error) {
+          console.log('⚠️ Failed to refresh messages from API, using cached messages only');
+        }
       } else {
         console.log(`🔄 No cached messages found, loading from API:`, conversation._id);
 
@@ -570,16 +620,24 @@ export const useChat = () => {
     const handleNewMessage = (data) => {
       const { message, conversationId } = data;
 
-      // Add message to current conversation only
+      // ALWAYS cache the message regardless of current conversation
+      const cachedMessages = getCachedMessages(conversationId) || [];
+      const existingCachedMessage = cachedMessages.find(msg => msg._id === message._id);
+
+      if (!existingCachedMessage) {
+        const updatedCachedMessages = [...cachedMessages, message];
+        const cachedMetadata = getCachedMetadata(conversationId);
+        setCachedMessages(conversationId, updatedCachedMessages, cachedMetadata || {});
+        console.log(`💾 Cached new message for conversation ${conversationId}:`, message._id);
+      }
+
+      // Add message to current conversation only if it's the active one
       if (currentConversation && conversationId === currentConversation._id) {
         setMessages(prev => {
           // Check if message already exists to avoid duplicates
           const existingMessage = prev.find(msg => msg._id === message._id);
           if (!existingMessage) {
             const updatedMessages = [...prev, message];
-            // Update cache with new message
-            const cachedMetadata = getCachedMetadata(conversationId);
-            setCachedMessages(conversationId, updatedMessages, cachedMetadata || {});
             return updatedMessages;
           }
           return prev;
@@ -619,6 +677,38 @@ export const useChat = () => {
     const handleMessageSent = (data) => {
       const { message, conversationId } = data;
 
+      // ALWAYS cache the sent message regardless of current conversation
+      const cachedMessages = getCachedMessages(conversationId) || [];
+      const existingCachedMessage = cachedMessages.find(msg => msg._id === message._id);
+
+      if (!existingCachedMessage) {
+        // Find and replace optimistic message in cache or add new message
+        const optimisticIndex = cachedMessages.findIndex(msg =>
+          msg.isOptimistic &&
+          msg.status === 'sending' &&
+          msg.sender._id === user?._id &&
+          msg.content === message.content
+        );
+
+        let updatedCachedMessages;
+        if (optimisticIndex !== -1) {
+          // Replace optimistic message with real message in cache
+          updatedCachedMessages = [...cachedMessages];
+          updatedCachedMessages[optimisticIndex] = {
+            ...message,
+            status: 'sent',
+            reactions: message.reactions || []
+          };
+        } else {
+          // Add new message to cache
+          updatedCachedMessages = [...cachedMessages, { ...message, status: 'sent' }];
+        }
+
+        const cachedMetadata = getCachedMetadata(conversationId);
+        setCachedMessages(conversationId, updatedCachedMessages, cachedMetadata || {});
+        console.log(`💾 Cached sent message for conversation ${conversationId}:`, message._id);
+      }
+
       // Replace optimistic message with real message in current conversation
       if (currentConversation && conversationId === currentConversation._id) {
         setMessages(prev => {
@@ -649,10 +739,6 @@ export const useChat = () => {
               updatedMessages = prev;
             }
           }
-
-          // Update cache with sent message
-          const cachedMetadata = getCachedMetadata(conversationId);
-          setCachedMessages(conversationId, updatedMessages, cachedMetadata || {});
 
           return updatedMessages;
         });

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import ProfileSettings from '../components/settings/ProfileSettings';
-import NotificationSettings from '../components/settings/NotificationSettings';
-import PrivacySettings from '../components/settings/PrivacySettings';
-import ThemeSettings from '../components/settings/ThemeSettings';
-import PasswordSettings from '../components/settings/PasswordSettings';
+import ModernProfileSettings from '../components/settings/ModernProfileSettings';
+import ModernNotificationSettings from '../components/settings/ModernNotificationSettings';
+import ModernPrivacySettings from '../components/settings/ModernPrivacySettings';
+import ModernThemeSettings from '../components/settings/ModernThemeSettings';
+import ModernPasswordSettings from '../components/settings/ModernPasswordSettings';
 import {
   ArrowLeftIcon,
   UserIcon,
@@ -34,31 +34,31 @@ const Settings = () => {
       id: 'profile',
       name: 'Profile',
       icon: UserIcon,
-      component: ProfileSettings
+      component: ModernProfileSettings
     },
     {
       id: 'notifications',
       name: 'Notifications',
       icon: BellIcon,
-      component: NotificationSettings
+      component: ModernNotificationSettings
     },
     {
       id: 'privacy',
       name: 'Privacy',
       icon: ShieldCheckIcon,
-      component: PrivacySettings
+      component: ModernPrivacySettings
     },
     {
       id: 'theme',
       name: 'Theme',
       icon: PaintBrushIcon,
-      component: ThemeSettings
+      component: ModernThemeSettings
     },
     {
       id: 'password',
       name: 'Password',
       icon: KeyIcon,
-      component: PasswordSettings
+      component: ModernPasswordSettings
     }
   ];
 

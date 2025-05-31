@@ -89,12 +89,26 @@ const messageSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// 🚀 PERFORMANCE OPTIMIZATION: Add database indexes
+// 🚀 ENHANCED PERFORMANCE OPTIMIZATION: Add comprehensive database indexes
 messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
+messageSchema.index({ recipient: 1, sender: 1, createdAt: -1 });
 messageSchema.index({ createdAt: -1 });
-messageSchema.index({ 'deleted.isDeleted': 1 });
+messageSchema.index({ 'deleted.isDeleted': 1, createdAt: -1 });
 messageSchema.index({ sender: 1, createdAt: -1 });
 messageSchema.index({ recipient: 1, createdAt: -1 });
+// Compound index for conversation queries with read status
+messageSchema.index({
+  $or: [
+    { sender: 1, recipient: 1 },
+    { sender: 1, recipient: 1 }
+  ],
+  'deleted.isDeleted': 1,
+  createdAt: -1
+});
+// Index for unread message queries
+messageSchema.index({ recipient: 1, 'readBy.user': 1, 'deleted.isDeleted': 1 });
+// Text index for message search
+messageSchema.index({ content: 'text', sender: 1, recipient: 1 });
 
 // Virtual for conversation participants
 messageSchema.virtual('participants').get(function() {
@@ -164,31 +178,72 @@ messageSchema.methods.softDelete = function(deletedBy) {
   return this.save();
 };
 
-// 🚀 OPTIMIZED: Static method to get conversation between two users
+// 🚀 HIGHLY OPTIMIZED: Static method to get conversation between two users
 messageSchema.statics.getConversation = function(user1Id, user2Id, page = 1, limit = 50) {
   const skip = (page - 1) * limit;
 
-  return this.find({
-    $or: [
-      { sender: user1Id, recipient: user2Id },
-      { sender: user2Id, recipient: user1Id }
-    ]
-    // Include deleted messages to show "Message deleted" text
-  })
-  .populate('sender', 'username avatar isOnline')
-  .populate('recipient', 'username avatar isOnline')
-  .populate({
-    path: 'replyTo',
-    select: 'content sender createdAt deleted',
-    populate: {
-      path: 'sender',
-      select: 'username avatar'
-    }
-  })
-  .sort({ createdAt: -1 })
-  .skip(skip)
-  .limit(limit)
-  .lean(); // 🚀 Use lean() for better performance
+  return this.aggregate([
+    // Match messages between users
+    {
+      $match: {
+        $or: [
+          { sender: user1Id, recipient: user2Id },
+          { sender: user2Id, recipient: user1Id }
+        ]
+      }
+    },
+    // Sort by creation date (newest first for pagination)
+    { $sort: { createdAt: -1 } },
+    // Skip and limit for pagination
+    { $skip: skip },
+    { $limit: limit },
+    // Lookup sender details
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'sender',
+        foreignField: '_id',
+        as: 'sender',
+        pipeline: [{ $project: { username: 1, avatar: 1, isOnline: 1 } }]
+      }
+    },
+    // Lookup recipient details
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'recipient',
+        foreignField: '_id',
+        as: 'recipient',
+        pipeline: [{ $project: { username: 1, avatar: 1, isOnline: 1 } }]
+      }
+    },
+    // Lookup reply-to message details
+    {
+      $lookup: {
+        from: 'messages',
+        localField: 'replyTo',
+        foreignField: '_id',
+        as: 'replyTo',
+        pipeline: [
+          { $project: { content: 1, sender: 1, createdAt: 1, deleted: 1 } },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'sender',
+              foreignField: '_id',
+              as: 'sender',
+              pipeline: [{ $project: { username: 1, avatar: 1 } }]
+            }
+          },
+          { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } }
+        ]
+      }
+    },
+    // Unwind arrays to objects
+    { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$recipient', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$replyTo', preserveNullAndEmptyArrays: true } }
+  ]);
 };
 
 // Static method to get unread message count

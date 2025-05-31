@@ -33,6 +33,16 @@ const UserProfileModal = ({ userId, isOpen, onClose }) => {
     return allUsers.find(u => u.userId === userId)?.isOnline || false;
   };
 
+  // Get user status
+  const getUserStatus = (userId) => {
+    const user = allUsers.find(u => u.userId === userId);
+    if (!user) return 'offline';
+    if (user.isOnline) {
+      return user.status || 'online';
+    }
+    return 'offline';
+  };
+
   // Get user status text
   const getUserStatusText = (user) => {
     if (!user) return 'Unknown';
@@ -173,6 +183,7 @@ const UserProfileModal = ({ userId, isOpen, onClose }) => {
                       size="2xl"
                       showStatus={true}
                       isOnline={isUserOnline(profileUser._id)}
+                      status={getUserStatus(profileUser._id)}
                       className="mx-auto"
                     />
                   </div>

@@ -5,3 +5,4 @@ export { useUsers } from './useUsers';
 export { useLocalStorage } from './useLocalStorage';
 export { useDebounce } from './useDebounce';
 export { useOnlineStatus } from './useOnlineStatus';
+export { useSettingsCache } from './useSettingsCache';

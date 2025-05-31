@@ -1,6 +1,15 @@
 import { useState } from 'react';
+import StatusIndicator from './StatusIndicator';
 
-const UserAvatar = ({ user, size = 'md', className = '', showStatus = false, isOnline = false }) => {
+const UserAvatar = ({
+  user,
+  size = 'md',
+  className = '',
+  showStatus = false,
+  isOnline = false,
+  status = 'offline',
+  connectionQuality = 'good'
+}) => {
   const [imageError, setImageError] = useState(false);
   
   // Determine size class
@@ -60,11 +69,17 @@ const UserAvatar = ({ user, size = 'md', className = '', showStatus = false, isO
       </div>
       
       {showStatus && (
-        <div 
-          className={`absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 border-2 border-white dark:border-gray-800 rounded-full ${
-            isOnline ? 'bg-green-500' : 'bg-gray-400 dark:bg-gray-600'
-          }`}
-        ></div>
+        <div className="absolute -bottom-1 -right-1">
+          <div className="bg-white dark:bg-gray-800 rounded-full p-0.5 border border-gray-200 dark:border-gray-700">
+            <StatusIndicator
+              status={isOnline ? status : 'offline'}
+              size="xs"
+              showText={false}
+              showIcon={false}
+              connectionQuality={connectionQuality}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

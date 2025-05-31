@@ -81,6 +81,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  status: {
+    type: String,
+    enum: ['online', 'away', 'busy', 'offline'],
+    default: 'offline'
+  },
   lastSeen: {
     type: Date,
     default: Date.now
@@ -88,6 +93,10 @@ const userSchema = new mongoose.Schema({
   socketId: {
     type: String,
     default: null
+  },
+  deviceCount: {
+    type: Number,
+    default: 0
   },
   theme: {
     type: String,
@@ -168,11 +177,20 @@ userSchema.methods.updateLastSeen = function() {
 };
 
 // Set online status
-userSchema.methods.setOnlineStatus = function(isOnline, socketId = null) {
+userSchema.methods.setOnlineStatus = function(isOnline, socketId = null, status = null) {
   this.isOnline = isOnline;
   this.socketId = socketId;
+
+  // Set status based on online state
+  if (status) {
+    this.status = status;
+  } else {
+    this.status = isOnline ? 'online' : 'offline';
+  }
+
   if (!isOnline) {
     this.lastSeen = new Date();
+    this.deviceCount = 0;
   }
   return this.save();
 };

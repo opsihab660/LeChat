@@ -157,23 +157,24 @@ const Message = ({
 
   const isEditable = canEdit();
 
+  // Determine animation class based on message status
+  const getAnimationClass = () => {
+    if (message.isOptimistic) return 'optimistic';
+    if (message.status === 'sending') return 'sending';
+    if (message.status === 'sent') return 'sent';
+    return '';
+  };
+
   return (
     <>
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group ${className}`}>
-        <div className="max-w-[85%] sm:max-w-xs lg:max-w-md">
-        {/* Reply to message preview */}
-        {message.replyTo && (
-          <div className={`mb-2 ${isOwn ? 'ml-auto' : 'mr-auto'} max-w-full`}>
-            <div className={`
-              px-3 py-2 rounded-lg border-l-4 text-xs
-              ${isOwn
-                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400 text-blue-800 dark:text-blue-200'
-                : 'bg-gray-50 dark:bg-gray-800 border-gray-400 text-gray-600 dark:text-gray-300'
-              }
-            `}>
-              <p className="font-medium text-xs mb-1">
+      <div className={`message-container ${getAnimationClass()} flex ${isOwn ? 'justify-end' : 'justify-start'} group ${className}`}>
+        <div className={`message-bubble ${isOwn ? 'own' : 'other'} ${isEmojiOnlyMessage ? 'emoji-only' : ''}`}>
+          {/* Reply to message preview */}
+          {message.replyTo && (
+            <div className="reply-indicator">
+              <div className="reply-author">
                 {getReplyToSenderName()}
-              </p>
+              </div>
               {isReplyToEmojiOnly ? (
                 <div className="flex items-center space-x-2">
                   <span className={`${replyToEmojiCount === 1 ? 'text-base' : replyToEmojiCount <= 3 ? 'text-sm' : 'text-xs'} opacity-75`}>
@@ -184,36 +185,15 @@ const Message = ({
                   </span>
                 </div>
               ) : (
-                <p className="truncate opacity-75">
+                <div className="reply-content">
                   {message.replyTo.content || 'Message not available'}
-                </p>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Main message */}
-        <div className="relative">
-          <div
-            className={`
-              ${isEmojiOnlyMessage
-                ? `
-                  ${isSingleEmojiMessage
-                    ? 'p-2 bg-transparent'
-                    : 'px-3 py-2 bg-transparent'
-                  }
-                  rounded-2xl relative
-                `
-                : `
-                  px-3 sm:px-4 py-2 rounded-lg relative
-                  ${isOwn
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
-                  }
-                `
-              }
-            `}
-          >
+          {/* Message content */}
+          <div className={`${isEmojiOnlyMessage ? 'emoji-message-container' : ''}`}>
             {isDeleted ? (
               <p className="text-sm text-gray-500 dark:text-gray-400 italic">
                 Message deleted
@@ -267,54 +247,43 @@ const Message = ({
             ) : (
               <div>
                 {/* Text message */}
-                <p className={`
-                  ${isEmojiOnlyMessage
+                <p className={`message-content ${
+                  isEmojiOnlyMessage
                     ? `${getEmojiSizeClass(emojiCount)} leading-none text-center emoji-message font-emoji ${isSingleEmojiMessage ? 'single-emoji' : ''}`
-                    : 'text-sm break-words whitespace-pre-wrap'
-                  }
-                `}>
+                    : ''
+                }`}>
                   {message.content}
                 </p>
                 {message.edited?.isEdited && (
-                  <p className={`text-xs mt-1 italic ${
-                    isOwn ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'
-                  }`}>
+                  <p className="text-xs mt-1 italic opacity-60">
                     edited
                   </p>
                 )}
               </div>
             )}
 
-            {/* Message footer - hide for emoji-only messages */}
+            {/* Message timestamp and read receipts */}
             {!isEmojiOnlyMessage && (
-              <div className={`flex items-center justify-between mt-1 ${
-                isOwn ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
-              }`}>
-                <p className="text-xs">
+              <div className="message-timestamp">
+                <span>
                   {new Date(message.createdAt).toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit'
                   })}
-                </p>
+                </span>
 
-                {/* Seen indicator for sent messages */}
+                {/* Read receipts for sent messages */}
                 {isOwn && (
-                  <div className="flex items-center space-x-1 ml-2">
+                  <div className="flex items-center">
                     {message.readBy && message.readBy.length > 0 ? (
-                      <div className="flex items-center space-x-1">
-                        <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-xs text-blue-400">Seen</span>
-                      </div>
+                      <svg className="w-4 h-4 read-receipt read" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
                     ) : (
-                      <div className="flex items-center space-x-1">
-                        <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-xs text-gray-400">Sent</span>
-                      </div>
+                      <svg className="w-4 h-4 read-receipt sent" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
                     )}
                   </div>
                 )}
@@ -339,14 +308,10 @@ const Message = ({
 
           {/* Message actions (visible on hover) - hide for deleted messages */}
           {!isDeleted && (
-            <div className={`
-              absolute top-0 ${isOwn ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'}
-              opacity-0 group-hover:opacity-100 transition-opacity duration-200
-              flex items-center space-x-1 px-2
-            `}>
+            <div className={`message-actions ${isOwn ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'}`}>
               <button
                 onClick={handleReply}
-                className="p-1.5 rounded-full bg-white dark:bg-gray-700 shadow-md border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                className="message-action-btn"
                 title="Reply"
               >
                 <ArrowUturnLeftIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
@@ -356,10 +321,10 @@ const Message = ({
               {isEditable && (
                 <button
                   onClick={handleEdit}
-                  className="p-1.5 rounded-full bg-white dark:bg-gray-700 shadow-md border border-gray-200 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                  className="message-action-btn"
                   title="Edit message"
                 >
-                  <PencilIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" />
+                  <PencilIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                 </button>
               )}
 
@@ -367,15 +332,15 @@ const Message = ({
               {isOwn && (
                 <button
                   onClick={handleDelete}
-                  className="p-1.5 rounded-full bg-white dark:bg-gray-700 shadow-md border border-gray-200 dark:border-gray-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 transition-colors"
+                  className="message-action-btn"
                   title="Delete message"
                 >
-                  <TrashIcon className="w-4 h-4 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400" />
+                  <TrashIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                 </button>
               )}
 
               <button
-                className="p-1.5 rounded-full bg-white dark:bg-gray-700 shadow-md border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                className="message-action-btn"
                 title="More options"
               >
                 <EllipsisVerticalIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
@@ -384,7 +349,6 @@ const Message = ({
           )}
         </div>
       </div>
-    </div>
 
     {/* Delete confirmation modal */}
     <DeleteMessageModal

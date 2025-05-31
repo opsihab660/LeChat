@@ -12,8 +12,9 @@ export const useTyping = (conversationId, recipientId) => {
   const typingDebounceRef = useRef(null);
   const batchTimeoutRef = useRef(null);
   const typingBatch = useRef([]);
+  const persistentTypingRef = useRef(false); // Track persistent typing state
 
-  // Ultra-fast batch typing handler - batches events for better performance
+  // Enhanced batch typing handler with better consistency
   const batchTypingEvent = useCallback((type) => {
     if (!conversationId || !recipientId) return;
 
@@ -31,7 +32,7 @@ export const useTyping = (conversationId, recipientId) => {
       clearTimeout(batchTimeoutRef.current);
     }
 
-    // Send batch after 50ms (ultra-fast batching)
+    // Optimized batching - reduced to 30ms for better responsiveness
     batchTimeoutRef.current = setTimeout(() => {
       if (typingBatch.current.length > 0) {
         const latestEvent = typingBatch.current[typingBatch.current.length - 1];
@@ -39,23 +40,25 @@ export const useTyping = (conversationId, recipientId) => {
         // Only send the latest event to avoid spam
         if (latestEvent.type === 'start') {
           startTyping({ conversationId, recipientId });
+          persistentTypingRef.current = true;
         } else {
           stopTyping({ conversationId, recipientId });
+          persistentTypingRef.current = false;
         }
 
         typingBatch.current = [];
       }
-    }, 50);
+    }, 30);
   }, [conversationId, recipientId, startTyping, stopTyping]);
 
-  // Debounced typing handler - reduced from 300ms to 100ms for faster response
+  // Enhanced debounced typing handler with better throttling
   const debouncedTypingStart = useCallback(() => {
     if (!conversationId || !recipientId) return;
 
     const now = Date.now();
 
-    // Reduced throttle from 500ms to 200ms for faster updates
-    if (now - lastTypingEventRef.current < 200) {
+    // Improved throttle - reduced to 150ms to match backend
+    if (now - lastTypingEventRef.current < 150) {
       return;
     }
 
@@ -63,7 +66,7 @@ export const useTyping = (conversationId, recipientId) => {
     batchTypingEvent('start');
   }, [conversationId, recipientId, batchTypingEvent]);
 
-  // Handle typing start - INSTANT UI update, optimized network calls
+  // Enhanced typing start handler with better consistency
   const handleTypingStart = useCallback(() => {
     if (!conversationId || !recipientId) return;
 
@@ -78,27 +81,30 @@ export const useTyping = (conversationId, recipientId) => {
       clearTimeout(typingDebounceRef.current);
     }
 
-    // Reduced debounce from 300ms to 100ms for faster network updates
+    // Optimized debounce - reduced to 80ms for faster network updates
     typingDebounceRef.current = setTimeout(() => {
       debouncedTypingStart();
-    }, 100);
+    }, 80);
 
-    // Clear existing timeout and reset
+    // Clear existing timeout and reset with longer duration for consistency
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Reduced auto-stop from 3000ms to 2000ms for faster cleanup
+    // ✅ Enhanced auto-stop with longer timeout for better consistency
     typingTimeoutRef.current = setTimeout(() => {
-      handleTypingStop();
-    }, 2000);
+      // Only stop if we're still in the same typing session
+      if (isTypingRef.current && persistentTypingRef.current) {
+        handleTypingStop();
+      }
+    }, 2500); // Increased to 2.5 seconds for better consistency
   }, [conversationId, recipientId, debouncedTypingStart]);
 
-  // Handle typing stop - INSTANT UI update, optimized cleanup
+  // Enhanced typing stop handler with better cleanup
   const handleTypingStop = useCallback(() => {
     if (!conversationId || !recipientId) return;
 
-    // Clear all timeouts
+    // Clear all timeouts to prevent conflicts
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current);
       typingDebounceRef.current = null;
@@ -114,9 +120,10 @@ export const useTyping = (conversationId, recipientId) => {
       batchTimeoutRef.current = null;
     }
 
-    // ✅ INSTANT UI UPDATE (0ms lag)
+    // ✅ INSTANT UI UPDATE with state consistency check
     if (isTypingRef.current) {
       isTypingRef.current = false;
+      persistentTypingRef.current = false;
       setIsTyping(false);
       batchTypingEvent('stop');
     }

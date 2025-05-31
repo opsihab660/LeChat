@@ -9,6 +9,12 @@ const activeUsers = new Map();
 const allUsersStatus = new Map();
 // ✅ ULTRA-FAST TYPING CACHE - Memory-based for instant performance
 const typingCache = new Map();
+// 🔄 HEARTBEAT TRACKING - Track last heartbeat from each user
+const userHeartbeats = new Map();
+// 📱 DEVICE TRACKING - Track multiple devices per user
+const userDevices = new Map();
+// ⏰ USER ACTIVITY TRACKING - Track user activity status
+const userActivity = new Map();
 
 // ✅ PERIODIC CLEANUP for typing cache - runs every 1 second for optimal performance
 setInterval(() => {
@@ -21,6 +27,83 @@ setInterval(() => {
     }
   }
 }, 1000);
+
+// 🔄 HEARTBEAT MONITOR - Check for stale connections every 30 seconds
+setInterval(() => {
+  const now = Date.now();
+  const HEARTBEAT_TIMEOUT = 60000; // 60 seconds timeout
+
+  for (const [userId, lastHeartbeat] of userHeartbeats) {
+    if (now - lastHeartbeat > HEARTBEAT_TIMEOUT) {
+      console.log(`💔 User ${userId} heartbeat timeout, marking as offline`);
+
+      // Mark user as offline
+      const userStatus = allUsersStatus.get(userId);
+      if (userStatus) {
+        userStatus.isOnline = false;
+        userStatus.lastSeen = new Date(lastHeartbeat);
+
+        // Broadcast offline status
+        const io = global.io; // We'll set this in server.js
+        if (io) {
+          io.emit('user_status_changed', {
+            userId: userId,
+            username: userStatus.user.username,
+            avatar: userStatus.user.avatar,
+            isOnline: false,
+            lastSeen: new Date(lastHeartbeat)
+          });
+        }
+      }
+
+      // Clean up
+      userHeartbeats.delete(userId);
+      activeUsers.delete(userId);
+    }
+  }
+}, 30000);
+
+// ⏰ ACTIVITY MONITOR - Check for idle users every 2 minutes
+setInterval(() => {
+  const now = Date.now();
+  const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes idle = away
+  const AWAY_TIMEOUT = 15 * 60 * 1000; // 15 minutes away = offline
+
+  for (const [userId, activity] of userActivity) {
+    const timeSinceActivity = now - activity.lastActivity;
+    let newStatus = 'online';
+
+    if (timeSinceActivity > AWAY_TIMEOUT) {
+      newStatus = 'offline';
+    } else if (timeSinceActivity > IDLE_TIMEOUT) {
+      newStatus = 'away';
+    }
+
+    if (activity.status !== newStatus) {
+      activity.status = newStatus;
+
+      // Update user status
+      const userStatus = allUsersStatus.get(userId);
+      if (userStatus) {
+        userStatus.status = newStatus;
+        userStatus.isOnline = newStatus !== 'offline';
+
+        // Broadcast status change
+        const io = global.io;
+        if (io) {
+          io.emit('user_status_changed', {
+            userId: userId,
+            username: userStatus.user.username,
+            avatar: userStatus.user.avatar,
+            isOnline: newStatus !== 'offline',
+            status: newStatus,
+            lastSeen: new Date()
+          });
+        }
+      }
+    }
+  }
+}, 120000);
 
 // Authenticate socket connection
 const authenticateSocket = async (socket, next) => {
@@ -50,19 +133,38 @@ const authenticateSocket = async (socket, next) => {
 export const handleSocketConnection = async (socket, io) => {
   console.log(`🔌 User connected: ${socket.user.username} (${socket.id})`);
 
+  // 🔄 Initialize heartbeat tracking
+  userHeartbeats.set(socket.userId, Date.now());
+
+  // ⏰ Initialize user activity tracking
+  userActivity.set(socket.userId, {
+    lastActivity: Date.now(),
+    status: 'online',
+    deviceInfo: socket.handshake.headers['user-agent'] || 'Unknown Device'
+  });
+
+  // 📱 Track multiple devices for same user
+  if (!userDevices.has(socket.userId)) {
+    userDevices.set(socket.userId, new Set());
+  }
+  userDevices.get(socket.userId).add(socket.id);
+
   // Add user to active users
   activeUsers.set(socket.userId, {
     socketId: socket.id,
     user: socket.user,
-    lastSeen: new Date()
+    lastSeen: new Date(),
+    deviceCount: userDevices.get(socket.userId).size
   });
 
   // Update all users status map
   allUsersStatus.set(socket.userId, {
     user: socket.user,
     isOnline: true,
+    status: 'online',
     lastSeen: new Date(),
-    socketId: socket.id
+    socketId: socket.id,
+    deviceCount: userDevices.get(socket.userId).size
   });
 
   // Update user online status in database
@@ -361,7 +463,7 @@ export const handleSocketConnection = async (socket, io) => {
   // Throttle typing events to prevent spam
   const typingThrottle = new Map();
 
-  // ✅ ULTRA-FAST TYPING HANDLERS - Memory-based with reduced throttling
+  // ✅ ENHANCED TYPING HANDLERS - Improved consistency and state management
   socket.on('typing_start', async (data) => {
     try {
       const { recipientId, conversationId } = data;
@@ -372,25 +474,49 @@ export const handleSocketConnection = async (socket, io) => {
         return;
       }
 
-      // ✅ Reduced throttle from 500ms to 200ms for faster updates
+      // ✅ Improved throttling with better consistency
       const throttleKey = `${socket.userId}_${conversationId}`;
       const now = Date.now();
       const lastTyping = typingThrottle.get(throttleKey);
 
-      if (lastTyping && now - lastTyping < 200) {
+      // Reduced throttle to 150ms for better responsiveness while preventing spam
+      if (lastTyping && now - lastTyping < 150) {
         return; // Skip this typing event
       }
 
       typingThrottle.set(throttleKey, now);
 
-      // ✅ Skip database operations for typing indicators - use memory only
-      // Store typing state in memory for ultra-fast performance
+      // ✅ Enhanced state management with timeout tracking
       const typingKey = `${conversationId}_${socket.userId}`;
+      const existingState = typingCache.get(typingKey);
+
+      // Clear any existing timeout to prevent conflicts
+      if (existingState && existingState.timeoutId) {
+        clearTimeout(existingState.timeoutId);
+      }
+
+      // Create new timeout for auto-cleanup
+      const timeoutId = setTimeout(() => {
+        const currentState = typingCache.get(typingKey);
+        if (currentState && currentState.timeoutId === timeoutId) {
+          typingCache.delete(typingKey);
+          const recipientSocket = activeUsers.get(recipientId);
+          if (recipientSocket) {
+            io.to(`user_${recipientId}`).emit('user_stopped_typing', {
+              userId: socket.userId,
+              conversationId
+            });
+          }
+        }
+      }, 3000); // Increased to 3 seconds for better consistency
+
+      // Store enhanced typing state with timeout tracking
       typingCache.set(typingKey, {
         userId: socket.userId,
         username: socket.user.username,
         conversationId,
-        timestamp: now
+        timestamp: now,
+        timeoutId: timeoutId
       });
 
       // ✅ INSTANT notification to recipient (no database delay)
@@ -399,20 +525,10 @@ export const handleSocketConnection = async (socket, io) => {
         io.to(`user_${recipientId}`).emit('user_typing', {
           userId: socket.userId,
           username: socket.user.username,
-          conversationId
+          conversationId,
+          timestamp: now
         });
       }
-
-      // ✅ Auto-cleanup after 2.5 seconds (reduced from 3.5s)
-      setTimeout(() => {
-        typingCache.delete(typingKey);
-        if (recipientSocket) {
-          io.to(`user_${recipientId}`).emit('user_stopped_typing', {
-            userId: socket.userId,
-            conversationId
-          });
-        }
-      }, 2500);
 
     } catch (error) {
       console.error('Typing start error:', error);
@@ -430,8 +546,16 @@ export const handleSocketConnection = async (socket, io) => {
         return;
       }
 
-      // ✅ INSTANT memory cleanup (no database operations)
+      // ✅ Enhanced cleanup with timeout management
       const typingKey = `${conversationId}_${socket.userId}`;
+      const existingState = typingCache.get(typingKey);
+
+      // Clear any existing timeout to prevent conflicts
+      if (existingState && existingState.timeoutId) {
+        clearTimeout(existingState.timeoutId);
+      }
+
+      // Remove from cache
       typingCache.delete(typingKey);
 
       // ✅ INSTANT notification to recipient
@@ -439,7 +563,8 @@ export const handleSocketConnection = async (socket, io) => {
       if (recipientSocket) {
         io.to(`user_${recipientId}`).emit('user_stopped_typing', {
           userId: socket.userId,
-          conversationId
+          conversationId,
+          timestamp: Date.now()
         });
       }
 
@@ -577,17 +702,73 @@ export const handleSocketConnection = async (socket, io) => {
     }
   });
 
+  // 🔄 Handle heartbeat from client
+  socket.on('heartbeat', () => {
+    userHeartbeats.set(socket.userId, Date.now());
+    socket.emit('heartbeat_ack'); // Acknowledge heartbeat
+  });
+
+  // ⏰ Handle user activity updates
+  socket.on('user_activity', (data) => {
+    try {
+      const { type } = data; // 'active', 'idle', 'away'
+
+      const activity = userActivity.get(socket.userId);
+      if (activity) {
+        activity.lastActivity = Date.now();
+        if (type === 'active') {
+          activity.status = 'online';
+        }
+
+        // Update user status
+        const userStatus = allUsersStatus.get(socket.userId);
+        if (userStatus && userStatus.status !== activity.status) {
+          userStatus.status = activity.status;
+          userStatus.isOnline = activity.status !== 'offline';
+
+          // Broadcast status change
+          socket.broadcast.emit('user_status_changed', {
+            userId: socket.userId,
+            username: socket.user.username,
+            avatar: socket.user.avatar,
+            isOnline: activity.status !== 'offline',
+            status: activity.status,
+            lastSeen: new Date()
+          });
+        }
+      }
+    } catch (error) {
+      console.error('User activity error:', error);
+    }
+  });
+
   // Handle user status updates
   socket.on('update_status', async (data) => {
     try {
       const { status } = data; // 'online', 'away', 'busy', 'offline'
 
-      // Update user status in database if needed
-      // For now, we'll just broadcast the status change
+      // Update activity tracking
+      const activity = userActivity.get(socket.userId);
+      if (activity) {
+        activity.status = status;
+        activity.lastActivity = Date.now();
+      }
 
+      // Update user status
+      const userStatus = allUsersStatus.get(socket.userId);
+      if (userStatus) {
+        userStatus.status = status;
+        userStatus.isOnline = status !== 'offline';
+      }
+
+      // Broadcast status change
       socket.broadcast.emit('user_status_changed', {
         userId: socket.userId,
-        status
+        username: socket.user.username,
+        avatar: socket.user.avatar,
+        isOnline: status !== 'offline',
+        status: status,
+        lastSeen: new Date()
       });
 
     } catch (error) {
@@ -600,15 +781,46 @@ export const handleSocketConnection = async (socket, io) => {
     try {
       console.log(`❌ User disconnected: ${socket.user.username} (${socket.id})`);
 
-      // Remove from active users
+      // 📱 Remove device from user's device list
+      const userDeviceSet = userDevices.get(socket.userId);
+      if (userDeviceSet) {
+        userDeviceSet.delete(socket.id);
+
+        // If user has other active devices, don't mark as offline
+        if (userDeviceSet.size > 0) {
+          console.log(`📱 User ${socket.user.username} still has ${userDeviceSet.size} active device(s)`);
+
+          // Update device count in status
+          const userStatus = allUsersStatus.get(socket.userId);
+          if (userStatus) {
+            userStatus.deviceCount = userDeviceSet.size;
+          }
+
+          // Clean up this specific socket but keep user online
+          return;
+        } else {
+          // No more devices, clean up completely
+          userDevices.delete(socket.userId);
+        }
+      }
+
+      // Remove from active users (only if no other devices)
       activeUsers.delete(socket.userId);
+
+      // 🔄 Clean up heartbeat tracking
+      userHeartbeats.delete(socket.userId);
+
+      // ⏰ Clean up activity tracking
+      userActivity.delete(socket.userId);
 
       // Update all users status map to offline
       allUsersStatus.set(socket.userId, {
         user: socket.user,
         isOnline: false,
+        status: 'offline',
         lastSeen: new Date(),
-        socketId: null
+        socketId: null,
+        deviceCount: 0
       });
 
       // Update user offline status in database
@@ -620,6 +832,7 @@ export const handleSocketConnection = async (socket, io) => {
         username: socket.user.username,
         avatar: socket.user.avatar,
         isOnline: false,
+        status: 'offline',
         lastSeen: new Date()
       });
 

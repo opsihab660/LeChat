@@ -82,12 +82,23 @@ const conversationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// 🚀 PERFORMANCE OPTIMIZATION: Add database indexes
+// 🚀 ENHANCED PERFORMANCE OPTIMIZATION: Add comprehensive database indexes
 conversationSchema.index({ participants: 1, lastActivity: -1 });
 conversationSchema.index({ lastActivity: -1 });
-conversationSchema.index({ 'isArchived.user': 1 });
-conversationSchema.index({ participants: 1, 'isArchived.user': 1 });
+conversationSchema.index({ 'isArchived.user': 1, lastActivity: -1 });
+conversationSchema.index({ participants: 1, 'isArchived.user': 1, lastActivity: -1 });
 conversationSchema.index({ participants: 1 });
+// Compound index for user conversations with metadata
+conversationSchema.index({
+  participants: 1,
+  'metadata.conversationType': 1,
+  'isArchived.user': 1,
+  lastActivity: -1
+});
+// Index for unread count queries
+conversationSchema.index({ participants: 1, 'unreadCount.user': 1 });
+// Index for typing status queries
+conversationSchema.index({ participants: 1, 'typing.user': 1, 'typing.startedAt': -1 });
 
 // Ensure only 2 participants for direct messages
 conversationSchema.pre('save', function(next) {
@@ -296,19 +307,50 @@ conversationSchema.statics.findOrCreateDirectConversation = async function(user1
   return conversation;
 };
 
-// Static method to get user's conversations
+// 🚀 OPTIMIZED: Static method to get user's conversations with aggregation
 conversationSchema.statics.getUserConversations = function(userId, page = 1, limit = 20) {
   const skip = (page - 1) * limit;
 
-  return this.find({
-    participants: userId,
-    'isArchived.user': { $ne: userId }
-  })
-  .populate('participants', 'username avatar isOnline lastSeen')
-  .populate('lastMessage')
-  .sort({ lastActivity: -1 })
-  .skip(skip)
-  .limit(limit);
+  return this.aggregate([
+    // Match conversations for user that are not archived
+    {
+      $match: {
+        participants: userId,
+        'isArchived.user': { $ne: userId }
+      }
+    },
+    // Sort by last activity
+    { $sort: { lastActivity: -1 } },
+    // Pagination
+    { $skip: skip },
+    { $limit: limit },
+    // Lookup participants
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'participants',
+        foreignField: '_id',
+        as: 'participants',
+        pipeline: [
+          { $project: { username: 1, avatar: 1, isOnline: 1, lastSeen: 1 } }
+        ]
+      }
+    },
+    // Lookup last message
+    {
+      $lookup: {
+        from: 'messages',
+        localField: 'lastMessage',
+        foreignField: '_id',
+        as: 'lastMessage',
+        pipeline: [
+          { $project: { content: 1, sender: 1, createdAt: 1, type: 1 } }
+        ]
+      }
+    },
+    // Unwind last message (optional)
+    { $unwind: { path: '$lastMessage', preserveNullAndEmptyArrays: true } }
+  ]);
 };
 
 export default mongoose.model('Conversation', conversationSchema);

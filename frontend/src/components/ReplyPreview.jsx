@@ -41,13 +41,13 @@ const ReplyPreview = ({ replyingTo, onCancel, currentUser, conversationParticipa
   };
 
   return (
-    <div className={`bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 ${className}`}>
-      <div className="flex items-center justify-between">
+    <div className={`message-input-container border-t-0 ${className}`}>
+      <div className="flex items-center justify-between bg-white dark:bg-gray-700 rounded-lg p-3 mb-2 shadow-sm">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2">
-            <div className="w-1 h-8 bg-blue-500 rounded-full"></div>
+          <div className="flex items-center space-x-3">
+            <div className="w-1 h-10 bg-green-500 rounded-full"></div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+              <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">
                 Replying to {getSenderName()}
               </p>
               {isEmojiOnlyMessage ? (
@@ -60,7 +60,7 @@ const ReplyPreview = ({ replyingTo, onCancel, currentUser, conversationParticipa
                   </span>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
                   {replyingTo.content || 'Message not available'}
                 </p>
               )}
@@ -70,7 +70,7 @@ const ReplyPreview = ({ replyingTo, onCancel, currentUser, conversationParticipa
 
         <button
           onClick={onCancel}
-          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ml-2"
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ml-3"
           title="Cancel reply"
         >
           <XMarkIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
