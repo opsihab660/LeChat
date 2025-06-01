@@ -301,7 +301,7 @@ router.post('/conversations/:conversationId/messages', authenticateToken, valida
     if (replyTo) {
       await message.populate({
         path: 'replyTo',
-        select: 'content sender createdAt',
+        select: 'content sender createdAt type image',
         populate: {
           path: 'sender',
           select: 'username avatar'

@@ -216,7 +216,9 @@ export const handleSocketConnection = async (socket, io) => {
   // Handle sending messages
   socket.on('send_message', async (data) => {
     try {
-      const { recipientId, content, type = 'text', conversationId, replyTo, file } = data;
+      const { recipientId, content, type = 'text', conversationId, replyTo, file, imageData } = data;
+
+      console.log('📨 Received message data:', { recipientId, content, type, imageData: !!imageData });
 
       // Validate recipient
       const recipient = await User.findById(recipientId);
@@ -249,13 +251,25 @@ export const handleSocketConnection = async (socket, io) => {
         replyTo: replyTo || null
       };
 
-      // Add file data for image messages
-      if (type === 'image' && file) {
-        messageData.file = file;
+      // Add image data for image messages
+      if (type === 'image' && imageData) {
+        console.log('🖼️ Adding image data to message:', imageData);
+        messageData.image = {
+          url: imageData.imageUrl || imageData.url,
+          publicId: imageData.publicId,
+          width: imageData.width,
+          height: imageData.height,
+          format: imageData.format,
+          bytes: imageData.bytes
+        };
       }
+
+      console.log('💾 Creating message with data:', messageData);
 
       const message = new Message(messageData);
       await message.save();
+
+      console.log('✅ Message saved:', message._id, 'Type:', message.type, 'Has image:', !!message.image);
 
       // Populate message
       await message.populate('sender', 'username avatar');
@@ -263,7 +277,7 @@ export const handleSocketConnection = async (socket, io) => {
       if (replyTo) {
         await message.populate({
           path: 'replyTo',
-          select: 'content sender createdAt',
+          select: 'content sender createdAt type image',
           populate: {
             path: 'sender',
             select: 'username avatar'

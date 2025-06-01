@@ -389,8 +389,9 @@ export const useChat = () => {
   }, [loadMessages, scrollToBottom, getCachedMessages]);
 
   // Send a message with optimistic updates
-  const handleSendMessage = useCallback((content, type = 'text', replyTo = null, file = null) => {
-    if (!currentConversation || (!content.trim() && !file)) return;
+  const handleSendMessage = useCallback((content, type = 'text', replyTo = null, file = null, imageData = null) => {
+    console.log('🚀 handleSendMessage called:', { content, type, imageData });
+    if (!currentConversation || (!content.trim() && !file && !imageData)) return;
 
     const messageData = {
       recipientId: currentConversation.participant._id,
@@ -400,15 +401,18 @@ export const useChat = () => {
       replyTo
     };
 
-    // Add file data for image messages
-    if (type === 'image' && file) {
-      messageData.file = file;
+    // Add image data for image messages
+    if (type === 'image' && imageData) {
+      console.log('📎 Adding imageData to messageData:', imageData);
+      messageData.imageData = imageData;
     }
+
+    console.log('📨 Final messageData being sent:', messageData);
 
     // Create optimistic message for immediate UI update
     const optimisticMessage = {
       _id: `temp_${Date.now()}_${Math.random()}`, // Unique temporary ID
-      content: content.trim(),
+      content: content ? content.trim() : '',
       type,
       sender: {
         _id: user?._id || 'current_user',
@@ -419,9 +423,23 @@ export const useChat = () => {
       createdAt: new Date().toISOString(),
       replyTo: replyTo ? { _id: replyTo, content: 'Reply content...' } : null,
       isOptimistic: true, // Flag to identify optimistic messages
-      status: 'sending',
+      status: imageData?.isOptimistic ? 'uploading' : 'sending',
       reactions: [],
-      animationClass: 'sending' // Add animation class
+      animationClass: 'sending', // Add animation class
+      // Add image data for image messages
+      ...(type === 'image' && imageData && {
+        image: {
+          url: imageData.url,
+          isOptimistic: imageData.isOptimistic || false,
+          fileName: imageData.fileName,
+          fileSize: imageData.fileSize,
+          publicId: imageData.publicId,
+          width: imageData.width,
+          height: imageData.height,
+          format: imageData.format,
+          bytes: imageData.bytes
+        }
+      })
     };
 
     // Add optimistic message to UI immediately and update cache
@@ -685,9 +703,9 @@ export const useChat = () => {
         // Find and replace optimistic message in cache or add new message
         const optimisticIndex = cachedMessages.findIndex(msg =>
           msg.isOptimistic &&
-          msg.status === 'sending' &&
+          (msg.status === 'sending' || msg.status === 'uploading') &&
           msg.sender._id === user?._id &&
-          msg.content === message.content
+          (msg.content === message.content || (msg.type === 'image' && message.type === 'image'))
         );
 
         let updatedCachedMessages;
@@ -715,9 +733,9 @@ export const useChat = () => {
           // Find the most recent optimistic message from the current user
           const optimisticIndex = prev.findIndex(msg =>
             msg.isOptimistic &&
-            msg.status === 'sending' &&
+            (msg.status === 'sending' || msg.status === 'uploading') &&
             msg.sender._id === user?._id &&
-            msg.content === message.content
+            (msg.content === message.content || (msg.type === 'image' && message.type === 'image'))
           );
 
           let updatedMessages;

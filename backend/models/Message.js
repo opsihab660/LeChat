@@ -14,19 +14,27 @@ const messageSchema = new mongoose.Schema({
   content: {
     type: String,
     required: function() {
-      return !this.audio;
+      return !this.audio && !this.image;
     },
     maxlength: [1000, 'Message cannot exceed 1000 characters']
   },
   type: {
     type: String,
-    enum: ['text', 'audio', 'emoji'],
+    enum: ['text', 'audio', 'emoji', 'image'],
     default: 'text'
   },
   audio: {
     url: String,
     duration: Number,
     size: Number
+  },
+  image: {
+    url: String,
+    publicId: String,
+    width: Number,
+    height: Number,
+    format: String,
+    bytes: Number
   },
   replyTo: {
     type: mongoose.Schema.Types.ObjectId,
@@ -179,7 +187,7 @@ messageSchema.statics.getConversation = function(user1Id, user2Id, page = 1, lim
   .populate('recipient', 'username avatar isOnline')
   .populate({
     path: 'replyTo',
-    select: 'content sender createdAt deleted',
+    select: 'content sender createdAt deleted type image',
     populate: {
       path: 'sender',
       select: 'username avatar'

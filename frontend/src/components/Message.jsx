@@ -2,6 +2,7 @@ import { ArrowUturnLeftIcon, CheckIcon, EllipsisVerticalIcon, PencilIcon, TrashI
 import { useEffect, useRef, useState } from 'react';
 import { countEmojis, getEmojiSizeClass, isEmojiOnly, isSingleEmoji } from '../utils/emojiUtils';
 import DeleteMessageModal from './DeleteMessageModal';
+import ImageModal from './ImageModal';
 
 const Message = ({
   message,
@@ -13,11 +14,22 @@ const Message = ({
   onEdit,
   className = ''
 }) => {
+  // Debug logging for image messages
+  if (message.type === 'image') {
+    console.log('🖼️ Rendering image message:', {
+      id: message._id,
+      type: message.type,
+      hasImage: !!message.image,
+      imageUrl: message.image?.url,
+      content: message.content
+    });
+  }
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content || '');
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const editTextareaRef = useRef(null);
 
 
@@ -98,6 +110,16 @@ const Message = ({
     setShowDeleteModal(false);
   };
 
+  const handleImageClick = () => {
+    if (!message.image?.isOptimistic) {
+      setShowImageModal(true);
+    }
+  };
+
+  const handleCloseImageModal = () => {
+    setShowImageModal(false);
+  };
+
 
 
   // Check if message is emoji-only
@@ -175,7 +197,25 @@ const Message = ({
               <div className="reply-author">
                 {getReplyToSenderName()}
               </div>
-              {isReplyToEmojiOnly ? (
+
+              {/* Handle different message types in reply */}
+              {message.replyTo.type === 'image' ? (
+                <div className="flex items-center space-x-2">
+                  {message.replyTo.image?.url && (
+                    <img
+                      src={message.replyTo.image.url}
+                      alt="Reply image"
+                      className="w-8 h-8 rounded object-cover"
+                    />
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-xs opacity-75">📷 Image</span>
+                    {message.replyTo.content && (
+                      <span className="text-xs opacity-60">{message.replyTo.content}</span>
+                    )}
+                  </div>
+                </div>
+              ) : isReplyToEmojiOnly ? (
                 <div className="flex items-center space-x-2">
                   <span className={`${replyToEmojiCount === 1 ? 'text-base' : replyToEmojiCount <= 3 ? 'text-sm' : 'text-xs'} opacity-75`}>
                     {message.replyTo.content}
@@ -246,18 +286,64 @@ const Message = ({
               </div>
             ) : (
               <div>
-                {/* Text message */}
-                <p className={`message-content ${
-                  isEmojiOnlyMessage
-                    ? `${getEmojiSizeClass(emojiCount)} leading-none text-center emoji-message font-emoji ${isSingleEmojiMessage ? 'single-emoji' : ''}`
-                    : ''
-                }`}>
-                  {message.content}
-                </p>
-                {message.edited?.isEdited && (
-                  <p className="text-xs mt-1 italic opacity-60">
-                    edited
-                  </p>
+                {/* Image message */}
+                {message.type === 'image' && message.image?.url ? (
+                  <div className={`image-message relative ${message.image.isOptimistic ? 'optimistic' : ''}`}>
+                    <img
+                      src={message.image.url}
+                      alt="Shared image"
+                      className={`max-w-xs max-h-64 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity ${
+                        message.image.isOptimistic ? 'opacity-75' : ''
+                      }`}
+                      onClick={handleImageClick}
+                      loading="lazy"
+                      onError={(e) => {
+                        console.error('Image failed to load:', message.image.url);
+                        if (!message.image.isOptimistic) {
+                          e.target.style.display = 'none';
+                        }
+                      }}
+                    />
+
+                    {/* Upload progress overlay for optimistic images */}
+                    {message.image.isOptimistic && (
+                      <div className="upload-overlay absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded-lg">
+                        <div className="text-white text-sm font-medium">
+                          <div className="flex items-center space-x-2">
+                            <div className="spinner rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            <span>Uploading...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {message.content && (
+                      <p className="message-content mt-2">
+                        {message.content}
+                      </p>
+                    )}
+                    {message.edited?.isEdited && (
+                      <p className="text-xs mt-1 italic opacity-60">
+                        edited
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* Text message */
+                  <div>
+                    <p className={`message-content ${
+                      isEmojiOnlyMessage
+                        ? `${getEmojiSizeClass(emojiCount)} leading-none text-center emoji-message font-emoji ${isSingleEmojiMessage ? 'single-emoji' : ''}`
+                        : ''
+                    }`}>
+                      {message.content}
+                    </p>
+                    {message.edited?.isEdited && (
+                      <p className="text-xs mt-1 italic opacity-60">
+                        edited
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -271,6 +357,25 @@ const Message = ({
                     minute: '2-digit'
                   })}
                 </span>
+
+                {/* Message Status Indicator */}
+                {isOwn && (
+                  <span className="ml-2 text-xs message-status">
+                    {message.isOptimistic ? (
+                      message.status === 'uploading' ? (
+                        <span className="message-status sending">Uploading...</span>
+                      ) : (
+                        <span className="message-status sending">Sending...</span>
+                      )
+                    ) : message.status === 'sending' ? (
+                      <span className="message-status sending">Sending...</span>
+                    ) : message.status === 'sent' ? (
+                      <span className="message-status sent">Sent</span>
+                    ) : (
+                      <span className="message-status sent">✓</span>
+                    )}
+                  </span>
+                )}
 
                 {/* Read receipts for sent messages */}
                 {isOwn && (
@@ -359,6 +464,16 @@ const Message = ({
       isDeleting={isDeleting}
     />
 
+    {/* Image modal */}
+    {message.type === 'image' && message.image?.url && (
+      <ImageModal
+        isOpen={showImageModal}
+        onClose={handleCloseImageModal}
+        imageUrl={message.image.url}
+        imageData={message.image}
+        senderName={message.sender?.username || 'Unknown'}
+      />
+    )}
 
   </>
   );

@@ -18,6 +18,7 @@ import {
     MagnifyingGlassIcon,
     PaperAirplaneIcon,
     PaintBrushIcon,
+    PhotoIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import { ComputerDesktopIcon, MoonIcon, SunIcon } from '@heroicons/react/24/solid';
@@ -30,6 +31,8 @@ import { ConversationListSkeleton } from '../components/skeletons/ConversationSk
 import { MessageListSkeleton } from '../components/skeletons/MessageSkeleton';
 import UserProfileModal from '../components/UserProfileModal';
 import SettingsModal from '../components/SettingsModal';
+import ImageUpload from '../components/ImageUpload';
+import ImagePreviewInput from '../components/ImagePreviewInput';
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -47,6 +50,7 @@ const Chat = () => {
   const [rightPanelTab, setRightPanelTab] = useState('profile'); // 'profile' only
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showImageUpload, setShowImageUpload] = useState(false);
 
   // Ref for textarea functionality
   const textareaRef = useRef(null);
@@ -376,6 +380,31 @@ const Chat = () => {
   useEffect(() => {
     setShowRightPanel(false);
   }, [currentConversation?._id]);
+
+  // Handle image upload with optimistic UI
+  const handleImageSelect = (imageData) => {
+    console.log('📤 Sending image message with data:', imageData);
+    if (currentConversation && imageData) {
+      // Send image message with optional caption immediately
+      handleSendMessage(message.trim() || '', 'image', replyingTo?._id, null, imageData);
+      setMessage('');
+      setReplyingTo(null);
+      setShowImageUpload(false);
+      setShowEmojiPicker(false);
+      handleTypingStop();
+    }
+  };
+
+  // Function to update optimistic message with real Cloudinary URL
+  handleImageSelect.updateOptimistic = (realImageData) => {
+    console.log('🔄 Updating optimistic message with real data:', realImageData);
+    // This will be handled by the socket message_sent event
+    // The optimistic message will be replaced with the real message from server
+  };
+
+  const handleCancelImageUpload = () => {
+    setShowImageUpload(false);
+  };
 
 
 
@@ -1464,58 +1493,19 @@ const Chat = () => {
                 />
               </div>
 
-              <form onSubmit={handleSubmitMessage} className="flex items-center space-x-2 sm:space-x-3">
-                <div className="flex-1 relative">
-                  <textarea
-                    ref={textareaRef}
-                    value={message}
-                    onChange={handleMessageChange}
-                    onFocus={() => {
-                      // Optional: Could trigger typing start on focus if there's content
-                      if (message.trim()) {
-                        handleTypingStart();
-                      }
-                    }}
-                    onBlur={() => {
-                      // Stop typing when user leaves the input (mobile keyboards)
-                      handleTypingStop();
-                    }}
-                    placeholder={`Message ${currentConversation.participant?.username}...`}
-                    className="message-input w-full pr-12"
-                    autoComplete="off"
-                    rows="1"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSubmitMessage(e);
-                      }
-                      // Removed redundant typing logic from onKeyDown since onChange handles it
-                    }}
-                  />
-                  {/* Enhanced Emoji Button */}
-                  <button
-                    type="button"
-                    className={`absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-lg transition-all duration-200 text-sm sm:text-base ${
-                      showEmojiPicker
-                        ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900'
-                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                    onClick={toggleEmojiPicker}
-                    title="Add emoji"
-                  >
-                    <FaceSmileIcon className="w-5 h-5" />
-                  </button>
-                </div>
-
-
-
-                <button
-                  type="submit"
-                  disabled={!message.trim()}
-                  className="send-button"
-                >
-                  <PaperAirplaneIcon className="w-5 h-5" />
-                </button>
+              <form onSubmit={handleSubmitMessage} className="w-full">
+                <ImagePreviewInput
+                  onImageSelect={handleImageSelect}
+                  onSendMessage={handleSubmitMessage}
+                  disabled={!currentConversation}
+                  message={message}
+                  setMessage={setMessage}
+                  onMessageChange={handleMessageChange}
+                  placeholder={`Message ${currentConversation.participant?.username}...`}
+                  showEmojiPicker={showEmojiPicker}
+                  onToggleEmojiPicker={toggleEmojiPicker}
+                  onEmojiClick={handleEmojiClick}
+                />
               </form>
             </div>
           </div>

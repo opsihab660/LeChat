@@ -85,40 +85,7 @@ export const requireOnlineStatus = (req, res, next) => {
   next();
 };
 
-// Rate limiting for sensitive operations
-export const sensitiveOperationLimit = (req, res, next) => {
-  // This would typically use Redis for production
-  // For now, we'll use a simple in-memory store
-  const userLimits = global.userLimits || (global.userLimits = new Map());
-  const userId = req.user._id.toString();
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute
-  const maxRequests = 10;
 
-  if (!userLimits.has(userId)) {
-    userLimits.set(userId, { count: 1, resetTime: now + windowMs });
-    return next();
-  }
-
-  const userLimit = userLimits.get(userId);
-
-  if (now > userLimit.resetTime) {
-    userLimit.count = 1;
-    userLimit.resetTime = now + windowMs;
-    return next();
-  }
-
-  if (userLimit.count >= maxRequests) {
-    return res.status(429).json({
-      message: 'Too many requests. Please try again later.',
-      error: 'RATE_LIMIT_EXCEEDED',
-      retryAfter: Math.ceil((userLimit.resetTime - now) / 1000)
-    });
-  }
-
-  userLimit.count++;
-  next();
-};
 
 // Validate user permissions for conversation
 export const validateConversationAccess = async (req, res, next) => {
@@ -202,7 +169,6 @@ export default {
   authenticateToken,
   optionalAuth,
   requireOnlineStatus,
-  sensitiveOperationLimit,
   validateConversationAccess,
   validateMessageOwnership
 };

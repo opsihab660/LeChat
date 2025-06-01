@@ -5,6 +5,195 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Image message styles */
+.image-message img {
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease-in-out;
+}
+
+.image-message img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Image upload preview styles */
+.image-preview-container {
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Message status animations */
+.message-status {
+  transition: all 0.3s ease-in-out;
+}
+
+.message-status.sending {
+  color: #3b82f6;
+  animation: pulse 1.5s infinite;
+}
+
+.message-status.sent {
+  color: #10b981;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Upload status indicator */
+.upload-status {
+  transition: all 0.2s ease-in-out;
+}
+
+.upload-status.uploading {
+  color: #3b82f6;
+}
+
+.upload-status.uploaded {
+  color: #10b981;
+}
+
+.upload-status.sending {
+  color: #3b82f6;
+  animation: pulse 1s infinite;
+}
+
+.upload-status.sent {
+  color: #10b981;
+}
+
+/* Optimistic image styles */
+.image-message.optimistic {
+  position: relative;
+}
+
+.image-message.optimistic::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  pointer-events: none;
+}
+
+/* Upload overlay animation */
+.upload-overlay {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Spinner animation */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Image modal styles */
+.image-modal-backdrop {
+  backdrop-filter: blur(8px);
+  animation: fadeInBackdrop 0.3s ease-out;
+}
+
+.image-modal-content {
+  animation: zoomIn 0.3s ease-out;
+}
+
+@keyframes fadeInBackdrop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Image zoom transition */
+.image-zoom-transition {
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Reply indicator styles */
+.reply-indicator {
+  border-left: 3px solid #3b82f6;
+  padding-left: 8px;
+  margin-bottom: 8px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.reply-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #3b82f6;
+  margin-bottom: 2px;
+}
+
+.reply-content {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dark mode reply styles */
+.dark .reply-indicator {
+  background: rgba(59, 130, 246, 0.2);
+  border-left-color: #60a5fa;
+}
+
+.dark .reply-author {
+  color: #60a5fa;
+}
+
 :root {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
